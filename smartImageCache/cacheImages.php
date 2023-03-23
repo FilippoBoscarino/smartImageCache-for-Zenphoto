@@ -12,6 +12,7 @@
 // force UTF-8 Ø
 define('OFFSET_PATH', 3);
 define('CR_LF',chr(13).chr(10));
+define('TAB','&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
 require_once('../../zp-core/admin-globals.php');
 require_once('../../zp-core/functions/functions-image.php');
 require_once('../../zp-core/template-functions.php');
@@ -46,11 +47,12 @@ if ($album_path) {
 	);
 }
 
-$chunk=(isset($_REQUEST['chunk'])?sanitize($_REQUEST['chunk']):0);
-$process=(isset($_REQUEST['chunk'])&&($chunk>0)?true:false);
-$quantity=(isset($_REQUEST['quantity'])?sanitize($_REQUEST['quantity']):getOption('smartImageCache_howmany'));
-$auto=(isset($_REQUEST['auto'])?sanitize($_REQUEST['auto']):getOption('smartImageCache_autoadvance'));
-$timer=(isset($_REQUEST['timer'])?sanitize($_REQUEST['timer']):getOption('smartImageCache_autopause'));
+$process=((isset($_REQUEST['process'])&&($_REQUEST['process']=='execute'))?true:false);
+$_REQUEST['chunk']=($process?(intval($_REQUEST['chunk'])+1):0);
+$_REQUEST['quantity']	=($process?$_REQUEST['quantity']:getOption('smartImageCache_howmany'));
+$_REQUEST['auto']		=($process?isset($_REQUEST['auto']):getOption('smartImageCache_autoadvance'));
+$_REQUEST['timer']		=($process?(isset($_REQUEST['timer'])?$_REQUEST['timer']:''):getOption('smartImageCache_autopause'));
+$_REQUEST['show']		=($process?isset($_REQUEST['show']):getOption('smartImageCache_showcached'));
 
 cacheManager::$sizes=cacheManager::getSizes('active');
 
@@ -64,6 +66,7 @@ if (isset($_GET['select'])&&isset($_POST['enable'])) {
 } else {
 	cacheManager::$enabledsizes=array();
 }
+$method=(function_exists('curl_init')&&getOption('cacheManager_generationmode')=='curl');
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* Display																																				*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
@@ -102,10 +105,11 @@ echo '						'.gettext('A Smart extension is activated and to prevent server surc
 echo '						'.gettext('Anyway, if your server is not able to process all albums and images try one album after another from each album edit page, and try a lower number of images per cycle.<br>Also remember that Zenphoto will create any size on the fly right when needed.<br>').CR_LF;
 echo '					</p>'.CR_LF;
 					}
-/* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
+//* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* Form																																					*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-echo '				<form class="dirty-check clearfix" name="size_selections" action="?select&album='.$album_path.'&chunk='.($chunk+1).'&quantity='.$quantity.($auto?'&auto='.$auto.'&timer='.$timer:'').'" method="post" autocomplete="off">'.CR_LF;
+//echo '				<form class="dirty-check clearfix" name="size_selections" action="?select&album='.$album_path.'&chunk='.$_REQUEST['chunk']++.'&quantity='.$_REQUEST['quantity'].($_REQUEST['auto']?'&auto=true&timer='.$_REQUEST['timer']:'').'&show='.($_REQUEST['show']?'true':'false').'" method="post" autocomplete="off">'.CR_LF;
+echo '				<form class="dirty-check clearfix" name="size_selections" action="?select&album='.$album_path.'" method="post" autocomplete="off">'.CR_LF;
 echo '					'.XSRFToken('cacheImages');
 echo '					<ol class="no_bullets">'.CR_LF;
 							$defaultsizes=array(	array(	'option'=>'cache_full_image',
@@ -195,39 +199,63 @@ echo '											<ol class="no_bullets">'.CR_LF;
 							if (empty(cacheManager::$enabledsizes)) {echo '						</ol></span></li>'.CR_LF;}
 
 echo '						<br>'.CR_LF;
+echo '						<input type="hidden" name="process" id="process" value="execute"/>'.CR_LF;
+echo '						<input type="hidden" name="chunk" id="chunk" value="'.$_REQUEST['chunk'].'"/>'.CR_LF;
 echo '						<li><label>'.gettext('How many items has to be processed every cicle.').CR_LF;
-echo '							<input type="number" size="4" name="quantity" id="quantity" value="'.$quantity.'" '.($process?'disabled="disabled"':'').'/> '.gettext('<em>Value 0 (zero) means all images togheter in one chunk.</em> It can be used to review and control all the sizes toghether, when they are already cached.').CR_LF;
+if ($process) {
+	echo '							<input type="hidden" name="quantity" id="quantity" value="'.$_REQUEST['quantity'].'"/>'.CR_LF;
+	echo '							<input type="number" value="'.$_REQUEST['quantity'].'" disabled/> '.gettext('<em>Value 0 (zero) means all images togheter in one chunk.</em> It can be used to review and control all the sizes toghether, when they are already cached.').CR_LF;
+} else {
+	echo '							<input type="number" name="quantity" id="quantity" value="'.$_REQUEST['quantity'].'" /> '.gettext('<em>Value 0 (zero) means all images togheter in one chunk.</em> It can be used to review and control all the sizes toghether, when they are already cached.').CR_LF;
+}
 echo '						</label></li>'.CR_LF;
 echo '						<br>'.CR_LF;
 echo '						<li><label>'.CR_LF;
-echo '							<input type="checkbox" name="auto" id="auto" value="true" '.($auto?'checked':'').' onchange="document.getElementById(\'timer\').disabled=!this.checked" '.($process?'disabled="disabled"':'').'/> '.gettext('Enable process auto advance. It starts after ').' '.CR_LF;
-echo '							<input type="number" size="4" name="timer" id="timer" value="'.$timer.'" '.(!$auto?'disabled="disabled"':'').'" '.($process?'disabled="disabled"':'').'/> '.gettext('secs').CR_LF;
+if ($process) {
+	if ($_REQUEST['auto']) echo '							<input type="hidden" name="auto" id="auto" value="true" checked/>'.CR_LF;
+	echo '							<input type="checkbox" value="true" '.($_REQUEST['auto']?'checked':'').' disabled/> '.gettext('Enable process auto advance. It starts after ').' '.CR_LF;
+} else {
+	echo '							<input type="checkbox" name="auto" id="auto" value="true" '.($_REQUEST['auto']?'checked':'').' onchange="document.getElementById(\'timer\').disabled=!this.checked"/> '.gettext('Enable process auto advance. It starts after ').' '.CR_LF;
+}
+if ($process) {
+	echo '							<input type="hidden" name="timer" id="timer" value="'.$_REQUEST['timer'].'"/> '.gettext('secs').CR_LF;
+	echo '							<input type="number" value="'.$_REQUEST['timer'].'" disabled/> '.gettext('secs').CR_LF;
+} else {
+	echo '							<input type="number" name="timer" id="timer" value="'.$_REQUEST['timer'].'" '.(!$_REQUEST['auto']?'disabled':'').'/> '.gettext('secs').CR_LF;
+}
+echo '						</label></li>'.CR_LF;
+echo '						<li><label>'.CR_LF;
+if ($process) {
+	if ($_REQUEST['show']) echo '							<input type="hidden" name="show" id="show" value="true" checked/>'.CR_LF;
+	echo '							<input type="checkbox" value="true" '.($_REQUEST['show']?'checked':'').' disabled/> '.gettext('Show already cached thumbs.').' '.gettext('(Activate only if needed, or you overcharge client and server without an effective benefit.)').CR_LF;
+} else {
+	echo '							<input type="checkbox" name="show" id="show" value="true" '.($_REQUEST['show']?'checked':'').'/> '.gettext('Show already cached thumbs.').' '.gettext('(Activate only if needed, or you overcharge client and server without an effective benefit.)').CR_LF;
+}
 echo '						</label></li>'.CR_LF;
 echo '					</ol>'.CR_LF;
 						$button=false;
 						if (!empty(cacheManager::$enabledsizes)) {
 							if (smartImageCache::$imagesizes_sizes) {
-								$allalbums=array();
-								if($album_path) {
-									$allalbums[]=$album_path;
-								} else {
-									$allalbums=$_zp_gallery->getAlbums();
-								}
-
 								// general counts
 								if ($album_path) {
 									$album_actual=AlbumBase::newAlbum($album_path);
-									smartImageCache::create_albums_tree($album_actual);
+									smartImageCache::createAlbumsTree($album_actual);
 									smartImageCache::$imagesizes_total=smartImageCache::$images_total*smartImageCache::$imagesizes_sizes;
 									unset($albobj);
 								} else {
-									smartImageCache::create_albums_tree($album_actual);
+									foreach ($_zp_gallery->getAlbums() as $album_instance) {
+										$album_actual=AlbumBase::newAlbum($album_instance);
+										smartImageCache::createAlbumsTree($album_actual);
+									}
 									smartImageCache::$imagesizes_total=$_zp_gallery->getNumImages()*smartImageCache::$imagesizes_sizes;
+									unset($albobj);
 								}
-								$quantity=(($quantity==0)?smartImageCache::$images_total:$quantity);
-								$chunk_total=ceil(smartImageCache::$images_total/$quantity);
 
-echo '							<p>'.sprintf(ngettext('%1$u cache size to apply for %2$u items (%3$u cache sizes items in total.*)','%1$u cache sizes to apply for %2$u items (%3$u cache sizes images in total.*)',smartImageCache::$imagesizes_total),smartImageCache::$imagesizes_sizes,$quantity,smartImageCache::$imagesizes_total).'<br>'.CR_LF;
+								$_REQUEST['quantity']=(($_REQUEST['quantity']==0)?smartImageCache::$images_total:$_REQUEST['quantity']);
+
+								$chunk_total=ceil(smartImageCache::$images_total/$_REQUEST['quantity']);
+
+echo '							<p>'.sprintf(ngettext('%1$u cache size to apply for %2$u items (%3$u cache sizes items in total.*)','%1$u cache sizes to apply for %2$u items (%3$u cache sizes images in total.*)',smartImageCache::$imagesizes_total),smartImageCache::$imagesizes_sizes,$_REQUEST['quantity'],smartImageCache::$imagesizes_total).'<br>'.CR_LF;
 echo '								<em>'.gettext('* Approximate number not counting already existing cache sizes and of the object which do not need caching.').'</em><br>'.CR_LF;
 echo '								<em>'.gettext('* If some cache size appears not to be loaded below, try to pass mouse pointer on it, to attempt reloading.').'</em>'.CR_LF;
 echo '							</p>'.CR_LF;
@@ -241,12 +269,13 @@ echo '								</div>'.CR_LF;
 echo '								<img class="imagecaching_loader" src="'.WEBPATH.'/'.ZENFOLDER.'/images/ajax-loader.gif" alt="">'.CR_LF;
 
 echo '								<ul>'.CR_LF;
-echo '									<li>'.gettext('Automation:').' <b><span class="imagecaching_auto">'.($auto?'ON':'OFF').'</span></b> '.($auto?'(':'').'<span class="imagecaching_pause">'.($auto?$timer:'').'</span>'.($auto?' secs waiting)':'').'</li>'.CR_LF;
-echo '									<li>'.gettext('Chunk processed:').' <b><span class="imagecaching_chunkcount">'.$chunk.'</span></b> / <b><span>'.$chunk_total.'</span></b></li>'.CR_LF;
+echo '									<li>'.gettext('Automation:').' <b><span class="imagecaching_auto">'.($_REQUEST['auto']?'ON':'OFF').'</span></b> '.($_REQUEST['auto']?'(':'').'<span class="imagecaching_pause">'.($_REQUEST['auto']?$_REQUEST['timer']:'').'</span>'.($_REQUEST['auto']?' secs waiting)':'').'</li>'.CR_LF;
+echo '									<li>'.gettext('Cache production method:').' <b><span class="imagecaching_method">'.(getOption('graphicslib_selected')=='imagick'?'Imagick':'GDlibrary').'</span></b> library / <b><span class="imagecaching_method">'.($method?gettext('cURL'):gettext('Classic')).'</span></b> method</li>'.CR_LF;
+echo '									<li>'.gettext('Chunk processed:').' <b><span class="imagecaching_chunkcount">'.$_REQUEST['chunk'].'</span></b> / <b><span>'.$chunk_total.'</span></b></li>'.CR_LF;
 echo '									<li>'.gettext('Albums processed:').' <b><span class="imagecaching_albumcount">-</span></b> / <b><span>'.smartImageCache::$albums_total.'</span></b></li>'.CR_LF;
-echo '									<li>'.gettext('Items processed:').' <b><span class="imagecaching_imagecount">-</span></b> / <b><span>'.smartImageCache::$images_total.'</span></b> ('.$quantity.' images every chunk)</li>'.CR_LF;
-echo '									<li>'.gettext('Cache sizes processed:').' <b><span class="imagecaching_sizecount">-</span></b> / <b><span>'.smartImageCache::$imagesizes_total.'</span></b> ('.($quantity*smartImageCache::$imagesizes_sizes).' cache sizes every chunk)'.CR_LF;
-echo '										<br>'.gettext('Results for chunk ').'<b>'.$chunk.'</b>:<ul>'.CR_LF;
+echo '									<li>'.gettext('Items processed:').' <b><span class="imagecaching_imagecount">-</span></b> / <b><span>'.smartImageCache::$images_total.'</span></b> ('.$_REQUEST['quantity'].' images every chunk)</li>'.CR_LF;
+echo '									<li>'.gettext('Cache sizes processed:').' <b><span class="imagecaching_sizecount">-</span></b> / <b><span>'.smartImageCache::$imagesizes_total.'</span></b> ('.($_REQUEST['quantity']*smartImageCache::$imagesizes_sizes).' cache sizes every chunk)'.CR_LF;
+echo '										<br>'.gettext('Results for chunk ').'<b>'.$_REQUEST['chunk'].'</b>:<ul>'.CR_LF;
 echo '											<li><img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20" alt="cached" title="cached"> '.gettext('Already cached: ').'<span class="imagecaching_imagesizes_cached">'.smartImageCache::$imagesizes_cached.'</span> '.gettext('sizes').'</li>'.CR_LF;
 echo '											<li><img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/ok.png" height="20" alt="ok" title="ok"> '.gettext('Generated: ').'<span class="imagecaching_imagesizes_ok">'.smartImageCache::$imagesizes_ok.'</span> '.gettext('sizes').'</li>'.CR_LF;
 echo '											<li><img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/ko.png" height="20" alt="ko" title="ko"> '.gettext('Failed: ').'<span class="imagecaching_imagesizes_ko">'.smartImageCache::$imagesizes_ko.'</span> '.gettext('sizes').'</li>'.CR_LF;
@@ -259,13 +288,13 @@ echo '									</li>'.CR_LF;
 echo '								</ul>'.CR_LF;
 echo '							</div>'.CR_LF;
 
-								if ($process&&($chunk<$chunk_total)) {
+								if ($process&&($_REQUEST['chunk']<$chunk_total)) {
 echo '								<p class="buttons buttons_cachefinished clearfix">'.CR_LF;
 echo '									<button class="tooltip" type="submit" title="'.gettext('Continue').'">'.CR_LF;
 echo '										<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/play.png" height="20" id="auto_reloader" alt="continue">'.CR_LF;
 echo '									  	<strong>'.gettext("Continue job").'</strong>'.CR_LF;
 echo '									</button>'.CR_LF;
-										if ($auto) {
+										if ($_REQUEST['auto']) {
 echo '										<button class="tooltip" type="button" id="pause_button1" title="'.gettext('Pause').'" onclick="stopper();">'.CR_LF;
 echo '											<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/pause.png" height="20" alt="pause">'.CR_LF;
 echo '										  	<strong>'.gettext("Pause job").'</strong>'.CR_LF;
@@ -277,7 +306,22 @@ echo '									  	<strong>'.gettext("Reload chunk").'</strong>'.CR_LF;
 echo '									</button>'.CR_LF;
 echo '								</p>'.CR_LF;
 								} else {
-									if ($process) {smartImageCache::printButtons($returnpage,$album_path,false);}
+									if ($process) {
+echo '									<p class="buttons buttons_cachefinished clearfix">'.CR_LF;
+echo '										<a title="'.gettext('Back to the overview').'" href="'.WEBPATH.'/'.ZENFOLDER.$returnpage.'">'.CR_LF;
+echo '											<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/back.png" height="20"/><strong>'.gettext("Back").'</strong>'.CR_LF;
+echo '										</a>'.CR_LF;
+echo '										<a title="'.gettext('Reload').'" href="javascript:history.go(0);">'.CR_LF;
+echo '											<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/reload.png" height="20" alt="reload">'.CR_LF;
+echo '										  	<strong>'.gettext("Reload chunk").'</strong>'.CR_LF;
+echo '										</a>'.CR_LF;
+											if (is_array(cacheManager::$enabledsizes)) {
+echo '											<a title="'.gettext('New cache size selection').'" href="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/cacheImages.php?page=overview&tab=images&album='.$album_path.'">'.CR_LF;
+echo '												<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20"/><strong>'.gettext("New cache size selection").'</strong>'.CR_LF;
+echo '												</a>'.CR_LF;
+											}
+echo '									</p>';
+									}
 								}
 echo '							<hr>'.CR_LF;
 echo '							<h2>'.gettext('Chunk caching log').'</h2>'.CR_LF;
@@ -286,12 +330,9 @@ echo '							<hr>'.CR_LF;
 
 								@set_time_limit(getOption('smartImageCache_howlast')*1000);
 
-								foreach ($allalbums as $album) {
-									$album_actual=AlbumBase::newAlbum($album);
-									if (!$album_actual->isDynamic()||count($allalbums)==1) {
-										smartImageCache::work_albums_tree($chunk,$quantity);
-									}
-								}
+
+								$limit_achieved=smartImageCache::workAlbumsTree($_REQUEST['chunk'],$_REQUEST['quantity'],$method,$_REQUEST['show']);
+
 echo '							<p><strong>'.gettext('Chunk caching done!').'</strong></p>'.CR_LF;
 echo '							<script>'.CR_LF;
 echo '								$(document).ready(function() {'.CR_LF;
@@ -299,8 +340,8 @@ echo '									$(\'.imagecaching_progress\').addClass(\'messagebox\');'.CR_LF;
 echo '									$(\'.imagecaching_headline\').text(\''.gettext('Chunk caching done!').'\');'.CR_LF;
 echo '									$(\'.imagecaching_progress .notebox,.imagecaching_loader\').remove();'.CR_LF;
 
-echo '									$(\'.imagecaching_auto\').text(\''.($auto?'ON':'OFF').'\');'.CR_LF;
-echo '									$(\'.imagecaching_pause\').text(\''.$timer.'\');'.CR_LF;
+echo '									$(\'.imagecaching_auto\').text(\''.($_REQUEST['auto']?'ON':'OFF').'\');'.CR_LF;
+echo '									$(\'.imagecaching_pause\').text(\''.$_REQUEST['timer'].'\');'.CR_LF;
 echo '									$(\'.imagecaching_albumcount\').text(\''.smartImageCache::$albums_cached.'\');'.CR_LF;
 echo '									$(\'.imagecaching_imagecount\').text(\''.smartImageCache::$images_cached.'\');'.CR_LF;
 echo '									$(\'.imagecaching_sizecount\').text(\''.smartImageCache::$imagesizes_worked.'\');'.CR_LF;
@@ -321,10 +362,10 @@ echo '							<p>'.gettext('No cache sizes enabled.').'</p>'.CR_LF;
 							$button=array('text'=>gettext("Cache the images"),'title'=>gettext('Executes the caching of the selected image sizes.'));
 						}
 
-						if ($process&&($chunk<$chunk_total)) {
-							if ($auto && isset($_REQUEST['chunk'])&&(smartImageCache::$imagesizes_ko==0)&&(smartImageCache::$imagesizes_maybe==0)) {
+						if ($process&&($_REQUEST['chunk']<$chunk_total)) {
+							if ($_REQUEST['auto']&&isset($_REQUEST['chunk'])&&(smartImageCache::$imagesizes_ko==0)&&(smartImageCache::$imagesizes_maybe==0)) {
 echo '							<script>'.CR_LF;
-echo '								var auto_id=setTimeout(next,'.($auto?($timer*1000):0).');'.CR_LF;
+echo '								var auto_id=setTimeout(next,'.($_REQUEST['auto']?($_REQUEST['timer']*1000):0).');'.CR_LF;
 echo '								function next() {'.CR_LF;
 echo '									size_selections.submit();'.CR_LF;
 echo '								}'.CR_LF;
@@ -342,19 +383,34 @@ echo '							<button class="tooltip" type="submit" title="'.gettext('Continue').
 echo '								<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/play.png" height="20" alt="continue">'.CR_LF;
 echo '							  	<strong>'.gettext("Continue job").'</strong>'.CR_LF;
 echo '							</button>'.CR_LF;
-								if ($auto) {
+								if ($_REQUEST['auto']) {
 echo '								<button class="tooltip" type="button" id="pause_button2" title="'.gettext('Pause').'" onclick="stopper();">'.CR_LF;
 echo '									<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/pause.png" height="20" alt="pause">'.CR_LF;
 echo '								  	<strong>'.gettext("Pause job").'</strong>'.CR_LF;
 echo '								</button>'.CR_LF;
 								}
-echo '							<button class="tooltip" type="button" title="'.gettext('Reload').'">'.CR_LF;
-echo '								 <img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/reload.png" height="20" alt="reload" onclick="history.go(0);"/>'.CR_LF;
+echo '							<a title="'.gettext('Reload').'" href="javascript:history.go(0);">'.CR_LF;
+echo '								<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/reload.png" height="20" alt="reload">'.CR_LF;
 echo '							  	<strong>'.gettext("Reload chunk").'</strong>'.CR_LF;
-echo '							</button>'.CR_LF;
+echo '							</a>'.CR_LF;
 echo '						</p>';
 						} else {
-							if ($process) {smartImageCache::printButtons($returnpage,$album_path,false);}
+							if ($process) {
+echo '							<p class="buttons buttons_cachefinished clearfix">'.CR_LF;
+echo '								<a title="'.gettext('Back to the overview').'" href="'.WEBPATH.'/'.ZENFOLDER.$returnpage.'">'.CR_LF;
+echo '									<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/back.png" height="20"/><strong>'.gettext("Back").'</strong>'.CR_LF;
+echo '								</a>'.CR_LF;
+echo '								<a title="'.gettext('Reload').'" href="javascript:history.go(0);">'.CR_LF;
+echo '									<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/reload.png" height="20" alt="reload">'.CR_LF;
+echo '								  	<strong>'.gettext("Reload chunk").'</strong>'.CR_LF;
+echo '								</a>'.CR_LF;
+									if (is_array(cacheManager::$enabledsizes)) {
+echo '									<a title="'.gettext('New cache size selection').'" href="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/cacheImages.php?page=overview&tab=images&album='.$album_path.'">'.CR_LF;
+echo '										<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20"/><strong>'.gettext("New cache size selection").'</strong>'.CR_LF;
+echo '									</a>'.CR_LF;
+									}
+echo '							</p>';
+							}
 						}
 
 						if ($button) {

@@ -44,7 +44,7 @@
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 $plugin_is_filter=5|ADMIN_PLUGIN;
 $plugin_description=gettext("Smart Creation of cached images. It can be useful to avoid server surcharge if you work with many photos and/or very heavy HD files. cacheManager extension should be present and enabled to work.");
-$plugin_version='1.0.0';
+$plugin_version='1.0.1';
 $plugin_author="Filippo Boscarino";
 $plugin_category=gettext('Admin');
 
@@ -53,10 +53,7 @@ $option_interface='smartImageCache';
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* Controls																																				*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-if (!extensionEnabled('cacheManager')) {
-	echo 'Please enable "cacheManager" plugin';
-	exit();
-}
+$plugin_disable=((!extensionEnabled('cacheManager'))?gettext('cacheManager plugin is required'):false);
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* Includes																																				*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
@@ -64,8 +61,8 @@ require_once(SERVERPATH.'/'.ZENFOLDER.'/classes/class-feed.php');
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* Filters																																				*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-zp_register_filter('admin_utilities_buttons','smartImageCache::overviewbutton');
-zp_register_filter('edit_album_utilities','smartImageCache::albumbutton',-9998);
+zp_register_filter('admin_utilities_buttons','smartImageCache::overviewButton');
+zp_register_filter('edit_album_utilities','smartImageCache::albumButton',-9998);
 zp_register_filter('show_change','smartImageCache::published');
 
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
@@ -97,7 +94,7 @@ class smartImageCache {
 		setOptionDefault('smartImageCache_howlast',3);
 		setOptionDefault('smartImageCache_autoadvance',true);
 		setOptionDefault('smartImageCache_autopause',10);
-
+		setOptionDefault('smartImageCache_showcached',false);
 	}
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* Function:	getOptionsSupported()																													*/
@@ -132,6 +129,13 @@ class smartImageCache {
 				'desc'=>gettext('How many seconds process has to wait before auto advance.').
 						'<div class="notebox">'.gettext('<strong>NOTE:</strong> If not stopped within this period of secs, process proceed on next page.<br>If some sized image production goes wrong, process try to stop by itself.').'</div>'
 		);
+		$options[gettext('Show already cached thumbs')]=array(
+				'key'=>'smartImageCache_showcached',
+				'type'=>OPTION_TYPE_CHECKBOX,
+				'order'=>5,
+				'desc'=>gettext('Check to show already cached thumbs for verification purposes.<br>(Activate only if needed, or you overcharge client and server without an effective benefit.)')
+
+		);
 		return $options;
 	}
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
@@ -165,32 +169,33 @@ class smartImageCache {
 		return $obj;
 	}
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-/* Function:	create_albums_tree()																													*/
+/* Function:	createAlbumsTree()																													*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-	static function create_albums_tree($album_actual) {
-		self::$albums_tree[$album_actual->getName()]=null;
+	static function createAlbumsTree($album_actual) {
+		self::$albums_tree[$album_actual->getName()]=$album_actual->getNumImages();
 		self::$albums_total++;
 
-		foreach ($album_actual->getImages(0) as $image) {
-			self::$albums_tree[$album_actual->getName()][$image]=0;
-			self::$images_total++;
-		}
+		self::$images_total+=self::$albums_tree[$album_actual->getName()];
 
 		foreach ($album_actual->getAlbums() as $folder) {
 			$subalbum=AlbumBase::newAlbum($folder);
 			if (!$subalbum->isDynamic()) {
-				self::create_albums_tree($subalbum);
+				self::createAlbumsTree($subalbum);
 			}
 		}
 	}
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-/* Function:	work_albums_tree()																														*/
+/* Function:	workAlbumsTree()																														*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-	static function work_albums_tree($chunk,$quantity) {
+	static function workAlbumsTree($chunk,$quantity,$method,$show=false) {
 		global $_zp_gallery;
 		$theme=$_zp_gallery->getCurrentTheme();
+		$limit_achieved=false;
 
 		foreach (self::$albums_tree as $album_key=>$album_value) {
+
+			if ($limit_achieved) break;       // no sense to go on if already achieved the limit;
+
 			$album_actual=AlbumBase::newAlbum($album_key);
 			$parent=$album_actual->getUrAlbum();
 			$albumtheme=$parent->getAlbumTheme();
@@ -201,19 +206,32 @@ class smartImageCache {
 				$id=$parent->getID();
 			}
 			loadLocalOptions($id,$theme);
-			echo '<strong>'.gettext('Album').': '.html_encode($album_actual->getTitle()).'</strong> ('.html_encode($album_actual->getName()).') <b>'.$album_actual->getNumImages().' '.gettext('Items').'</b><br><hr>'.CR_LF;
 			self::$albums_cached++;
+			echo '. <strong>'.gettext('Album').' '.self::$albums_cached.' - '.html_encode($album_actual->getTitle()).'</strong> ('.html_encode($album_actual->getName()).') <b>'.$album_actual->getNumImages().' '.gettext('Items').'</b><br><hr>'.CR_LF;
 			echo '<script>'.CR_LF;
 			echo '	$(\'.imagecaching_albumcount\').text('.self::$albums_cached.');'.CR_LF;
 			echo '</script>'.CR_LF;
 
-			if (is_array($album_value)){
+			if ((self::$images_counter+$album_value)<(($chunk-1)*$quantity)) {
+				$album_value=array();
+				self::$images_counter=self::$images_counter+$album_value;
+				self::$images_total=self::$images_total+$album_value;
+			} else {
+				$album_value=array();
+				foreach ($album_actual->getImages(0) as $image) {
+					$album_value[$image]=0;
+					self::$images_total++;
+				}
+			}
+
+			if (count($album_value)){
 				foreach ($album_value as $image_key=>$image_value) {
 					self::$images_counter++;
 					if ((self::$images_counter>(($chunk-1)*$quantity))&&(self::$images_counter<=($chunk*$quantity))) {
-						self::work_images($album_actual,$image_key);
+						self::workItems($album_actual,$image_key,$method,$show);
 					} else {
 						if (self::$images_counter>($chunk*$quantity)) {
+							$limit_achieved=true;
 							break;
 						} else {
 							self::$imagesizes_worked=self::$images_counter*self::$imagesizes_sizes;
@@ -225,15 +243,16 @@ class smartImageCache {
 					echo '</script>'.CR_LF;
 				}
 			} else {
-				echo '<p class="notebox"><em>'.gettext('This album does not have any images.').'</em></p>'.CR_LF;
+				echo TAB.'<p class="notebox"><em>'.gettext('This album does not have any images.').'</em></p>'.CR_LF;
 			}
 			echo '<br><br>'.CR_LF;
 		}
+		return $limit_achieved;
 	}
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-/* Function:	work_images()																															*/
+/* Function:	workItems()																															*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-	static function work_images($album_actual,$image) {
+	static function workItems($album_actual,$image,$method,$show=false) {
 		$sizes_count=0;
 		$sizeuris=array();
 		$doneuris=array();
@@ -308,14 +327,18 @@ class smartImageCache {
 				}
 			}
 			$imagetitle=html_encode($image_actual->getTitle()).' ('.html_encode($image_actual->filename).'): ';
-			echo '<span>'.self::$images_counter.'. <b>'.$imagetitle.'</b></span><span>'.CR_LF;
+			echo TAB.'<span>'.gettext('Item').' '.self::$images_counter.'. <b>'.$imagetitle.'</b></span><span>'.TAB.CR_LF;
 
 			if ($sizes_count==0) {
 				foreach ($doneuris as $doneuri) {
 					self::$imagesizes_worked++;
 					self::$imagesizes_cached++;
-					echo '<a href="'.html_encode(pathurlencode($doneuri)).'&amp;debug" target="_blank"><img class="icon-position-top4" src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20" alt="cached" title="'.html_encode($doneuri).'" target="_blank""></a>'.CR_LF;
-					echo '<a href="'.html_encode(pathurlencode($doneuri)).'&amp;debug" target="_blank"><img src="'.html_encode(pathurlencode($doneuri)).'" height="50" id="picID'.self::$imagesizes_worked.'" alt="cached" target="_blank" onmouseover="javascript:document.getElementById(\'picID'.self::$imagesizes_worked.'\').src=\''.html_encode(pathurlencode($doneuri)).'\';"></a>'.CR_LF;
+					echo '<span>'.CR_LF;
+					echo '	<a href="'.html_encode(pathurlencode($doneuri)).'&amp;debug" target="_blank">'.CR_LF;
+					echo '		<img class="icon-position-top4" src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20" alt="cached" title="'.html_encode($doneuri).'">'.CR_LF;
+					if ($show) echo '		<img src="'.html_encode(pathurlencode($doneuri)).'" height="50" id="picID'.self::$imagesizes_worked.'" alt="cached" target="_blank" onmouseover="javascript:document.getElementById(\'picID'.self::$imagesizes_worked.'\').src=\''.html_encode(pathurlencode($doneuri)).'\';">'.CR_LF;
+					echo '	</a>'.CR_LF;
+					echo '</span>'.CR_LF;
 					echo '<script>'.CR_LF;
 					echo '	$(\'.imagecaching_sizecount\').text(\''.self::$imagesizes_worked.'\');'.CR_LF;
 					echo '	$(\'.imagecaching_imagesizes_cached\').text(\''.self::$imagesizes_cached.'\');'.CR_LF;
@@ -326,15 +349,19 @@ class smartImageCache {
 				foreach ($doneuris as $doneuri) {
 					self::$imagesizes_worked++;
 					self::$imagesizes_cached++;
-					echo '<a href="'.html_encode(pathurlencode($doneuri)).'&amp;debug" target="_blank"><img class="icon-position-top4" src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20" alt="cached" title="'.html_encode($doneuri).'" target="_blank""></a>'.CR_LF;
-					echo '<a href="'.html_encode(pathurlencode($doneuri)).'&amp;debug" target="_blank"><img src="'.html_encode(pathurlencode($doneuri)).'" height="50" id="picID'.self::$imagesizes_worked.'" alt="cached" target="_blank" onmouseover="javascript:document.getElementById(\'picID'.self::$imagesizes_worked.'\').src=\''.html_encode(pathurlencode($doneuri)).'\';"></a>'.CR_LF;
+					echo '<span>'.CR_LF;
+					echo '	<a href="'.html_encode(pathurlencode($doneuri)).'&amp;debug" target="_blank">'.CR_LF;
+					echo '		<img class="icon-position-top4" src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20" alt="cached" title="'.html_encode($doneuri).'">'.CR_LF;
+					if ($show) echo '		<img src="'.html_encode(pathurlencode($doneuri)).'" height="50" id="picID'.self::$imagesizes_worked.'" alt="cached" target="_blank" onmouseover="javascript:document.getElementById(\'picID'.self::$imagesizes_worked.'\').src=\''.html_encode(pathurlencode($doneuri)).'\';">'.CR_LF;
+					echo '	</a>'.CR_LF;
+					echo '</span>'.CR_LF;
 					echo '<script>'.CR_LF;
 					echo '	$(\'.imagecaching_sizecount\').text(\''.self::$imagesizes_worked.'\');'.CR_LF;
 					echo '	$(\'.imagecaching_imagesizes_cached\').text(\''.self::$imagesizes_cached.'\');'.CR_LF;
 					echo '</script>'.CR_LF;
 				}
 				foreach ($sizeuris as $sizeuri) {
-					self::generateImage($sizeuri);
+					self::generateImage($sizeuri,$method);
 					echo '<script>'.CR_LF;
 					echo '	$(\'.imagecaching_sizecount\').text(\''.self::$imagesizes_worked.'\');'.CR_LF;
 					echo '	$(\'.imagecaching_imagesizes_ok\').text(\''.self::$imagesizes_ok.'\');'.CR_LF;
@@ -347,7 +374,7 @@ class smartImageCache {
 			$imagetitle=html_encode($image_actual->getTitle()).' ('.html_encode($image_actual->filename).'): ';
 			self::$imagesizes_worked=self::$imagesizes_worked+self::$imagesizes_sizes;
 			self::$imagesizes_media=self::$imagesizes_media+self::$imagesizes_sizes;
-			echo '<span>'.self::$images_counter.'. <b>'.$imagetitle.'</b></span>'.CR_LF;
+			echo TAB.'<span>'.gettext('Item').' '.self::$images_counter.'. <b>'.$imagetitle.'</b></span>'.CR_LF;
 			echo '<span>'.CR_LF;
 			echo '	<em style="color:green;">'.gettext('Multimedia object. No cache needed').'</em>'.CR_LF;
 			echo '</span><br>'.CR_LF;
@@ -371,30 +398,40 @@ class smartImageCache {
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* Function:	generateImage()																															*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-	static function generateImage($imageuri) {
-		if (function_exists('curl_init') && getOption('cacheManager_generationmode')=='curl') {
+	static function generateImage($imageuri,$method) {
+		if ($method) {
 			$success=generateImageCacheFile($imageuri);
 			if ($success) {
 				self::$imagesizes_worked++;
 				self::$imagesizes_ok++;
-				echo '<a href="'.html_encode(pathurlencode($imageuri)).'&amp;debug"><img class="icon-position-top4" src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/ok.png" height="20" alt="OK" title="'.html_encode($imageuri).'" target="_blank""></a>'.CR_LF;
+				echo '<span>'.CR_LF;
+				echo '	<a href="'.html_encode(pathurlencode($imageuri)).'&amp;debug" target="_blank">'.CR_LF;
+				echo '		<img class="icon-position-top4" src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/ok.png" height="20" alt="OK" title="'.html_encode($imageuri).'">'.CR_LF;
 			} else {
 				self::$imagesizes_worked++;
 				self::$imagesizes_ko++;
-				echo '<a href="'.html_encode(pathurlencode($imageuri)).'&amp;debug"><img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/ko_red.png" height="20" alt="KO" target="_blank"></a>'.CR_LF;
+				echo '<span>'.CR_LF;
+				echo '	<a href="'.html_encode(pathurlencode($imageuri)).'&amp;debug" target="_blank">'.CR_LF;
+				echo '		<img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/ko_red.png" height="20" alt="KO">'.CR_LF;
 			}
-			echo '<a href="'.html_encode(pathurlencode($imageuri)).'&amp;debug"><img src="'.html_encode(pathurlencode($imageuri)).'" height="50" id="picID'.self::$imagesizes_worked.'" alt="reload" target="_blank" onmouseover="javascript:document.getElementById(\'picID'.self::$imagesizes_worked.'\').src=\''.html_encode(pathurlencode($imageuri)).'\';"></a>'.CR_LF;
+			echo '		<img src="'.html_encode(pathurlencode($imageuri)).'" height="50" id="picID'.self::$imagesizes_worked.'" alt="reload" onmouseover="javascript:document.getElementById(\'picID'.self::$imagesizes_worked.'\').src=\''.html_encode(pathurlencode($imageuri)).'\';">'.CR_LF;
+			echo '	</a>'.CR_LF;
+			echo '</span>'.CR_LF;
 		} else {
 			self::$imagesizes_worked++;
 			self::$imagesizes_maybe++;
-			echo '<a href="'.html_encode(pathurlencode($imageuri)).'&amp;debug"><img class="icon-position-top4" src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/unknown.png" height="20" alt="unknown" title="'.html_encode($imageuri).'" target="_blank""></a>'.CR_LF;
-			echo '<a href="'.html_encode(pathurlencode($imageuri)).'&amp;debug"><img src="'.html_encode(pathurlencode($imageuri)).'" height="50" id="picID'.self::$imagesizes_worked.'" alt="tentative" target="_blank" onmouseover="javascript:document.getElementById(\'picID'.self::$imagesizes_worked.'\').src=\''.html_encode(pathurlencode($imageuri)).'\';"></a>'.CR_LF;
+			echo '<span>'.CR_LF;
+			echo '	<a href="'.html_encode(pathurlencode($imageuri)).'&amp;debug" target="_blank">'.CR_LF;
+			echo '		<img class="icon-position-top4" src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/unknown.png" height="20" alt="unknown" title="'.html_encode($imageuri).'">'.CR_LF;
+			echo '		<img src="'.html_encode(pathurlencode($imageuri)).'" height="50" id="picID'.self::$imagesizes_worked.'" alt="tentative" onmouseover="javascript:document.getElementById(\'picID'.self::$imagesizes_worked.'\').src=\''.html_encode(pathurlencode($imageuri)).'\';">'.CR_LF;
+			echo '	</a>'.CR_LF;
+			echo '</span>'.CR_LF;
 		}
 	}
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-/* Function:	overviewbutton()																														*/
+/* Function:	overviewButton()																														*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-	static function overviewbutton($buttons) {
+	static function overviewButton($buttons) {
 		global $_zp_db;
 		if ($_zp_db->querySingleRow('SELECT * FROM '.$_zp_db->prefix('plugin_storage').' WHERE `type`="cacheManager" LIMIT 1')) {
 			$enable=true;
@@ -419,9 +456,9 @@ class smartImageCache {
 		return $buttons;
 	}
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-/* Function:	albumbutton()																															*/
+/* Function:	albumButton()																															*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-	static function albumbutton($html, $object, $prefix) {
+	static function albumButton($html, $object, $prefix) {
 		global $_zp_db;
 		$html ='<hr />';
 		if ($_zp_db->querySingleRow('SELECT * FROM '.$_zp_db->prefix('plugin_storage').' WHERE `type`="smartImageCache" LIMIT 1')) {
@@ -433,21 +470,6 @@ class smartImageCache {
 		}
 		$html.='<div class="button buttons tooltip" title="'.$title.'"><a href="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/cacheImages.php?album='.html_encode($object->name).'&amp;XSRFToken='.getXSRFToken('cacheImages').'"'.$disable.'><img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20">'.gettext('Smart Cache album images').'</a><br class="clearall" /></div>';
 		return $html;
-	}
-/* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-/* Function:	printButtons()																															*/
-/* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
-	static function printButtons($returnpage, $alb = '', $hidden = false) {
-		$class='';
-		if ($hidden) {
-			$class='hidden';
-		}
-		echo '<p class="buttons buttons_cachefinished clearfix '.$class.'">'.CR_LF;
-		echo '	<a title="'.gettext('Back to the overview').'" href="'.WEBPATH.'/'.ZENFOLDER.$returnpage.'"> <img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/back.png" height="20"/><strong>'.gettext("Back").'</strong></a>'.CR_LF;
-				if (is_array(cacheManager::$enabledsizes)) {
-		echo '		<a title="'.gettext('New cache size selection').'" href="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/cacheImages.php?page=overview&tab=images&album='.$alb.'"> <img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20"/><strong>'.gettext("New cache size selection").'</strong></a>'.CR_LF;
-				}
-		echo '</p>'.CR_LF;
 	}
 }
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
