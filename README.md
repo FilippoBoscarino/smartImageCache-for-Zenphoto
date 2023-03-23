@@ -1,6 +1,6 @@
 smartImageCache plugin for Zenphoto
-Version: 1.0.1
-Released: 2023-03-22
+Version: 1.0.2
+Released: 2023-03-23
 Author: Filippo Boscarino
 Platform: Zenphoto CMS v.1.6.x and higher
 Dependancies: cacheManager ACTIVE (zp_extension)
@@ -46,10 +46,10 @@ PLUGIN OPTIONS
 --------------------------
 Plugin options are:
 - number of items per chunk,
+- enable/disable sowing of already cached sizes in the result page
 - enable/disable auto-advance
 - waiting time before launching next chunk in auto-advance process,
 - php set timeout for processes
-- enable/disable sowing of already cached sizes in the result page
 
 FEATURES
 --------------------------
@@ -62,7 +62,7 @@ one in Album's edit page, labelled "Smart Cache album images"
 They both launch the image creation process.
 
 Those are the features provided:
-- segment the process of generating chache sizes in paged chunks with defined number of items every chunk.
+- segment the process of generating cache sizes in paged chunks, defining number of items every chunk.
 - enable an auto-advance process to easily provide batch operations
 - auto-advance process can be paused and restarted to easily verify things;
 - a chunk can be reloaded

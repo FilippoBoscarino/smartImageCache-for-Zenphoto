@@ -1,6 +1,17 @@
 CHANGELOG
 --------------------------
 
+v.1.0.2 - released 23/03/2023
+
+	- a bug in the album tree navigation that could stop the process, has been fixed
+	- a message about the total number of the items cointained in the album tree has been added in the launcher page
+	- some counters has been corrected in the result panel
+	- some cosmetic touch-ups to the launching page and to the outputs
+
+	Known issues:
+		- source's comments are not omologate to docblocks standards
+		- a lot of strings displayed are not tranlated by the platform, because not included in language libraries
+
 v.1.0.1 - released 22/03/2023
 
 	- Zenphoto's naming corrected
@@ -17,7 +28,7 @@ v.1.0.1 - released 22/03/2023
 
 	Known issues:
 		- source's comments are not omologate to docblocks standards
-		- a lot of strings displayed are not tranlated by the platform, because not included in languages libraries
+		- a lot of strings displayed are not tranlated by the platform, because not included in language libraries
 
 v.1.0.0 - released 20/03/2023
 	- Initial release

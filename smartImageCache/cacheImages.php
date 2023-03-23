@@ -199,6 +199,12 @@ echo '											<ol class="no_bullets">'.CR_LF;
 							if (empty(cacheManager::$enabledsizes)) {echo '						</ol></span></li>'.CR_LF;}
 
 echo '						<br>'.CR_LF;
+if ($album_path) {
+								$album_actual=AlbumBase::newAlbum($album_path);
+	echo '						<b>'.gettext('Whole album tree contains').' '.$album_actual->getNumAllImages().' '.gettext('items in total.</b>').CR_LF;
+} else {
+	echo '						<b>'.gettext('Whole Gallery contains').' '.$_zp_gallery->getNumImages().' '.gettext('items in total.</b>').CR_LF;
+}
 echo '						<input type="hidden" name="process" id="process" value="execute"/>'.CR_LF;
 echo '						<input type="hidden" name="chunk" id="chunk" value="'.$_REQUEST['chunk'].'"/>'.CR_LF;
 echo '						<li><label>'.gettext('How many items has to be processed every cicle.').CR_LF;
@@ -207,6 +213,14 @@ if ($process) {
 	echo '							<input type="number" value="'.$_REQUEST['quantity'].'" disabled/> '.gettext('<em>Value 0 (zero) means all images togheter in one chunk.</em> It can be used to review and control all the sizes toghether, when they are already cached.').CR_LF;
 } else {
 	echo '							<input type="number" name="quantity" id="quantity" value="'.$_REQUEST['quantity'].'" /> '.gettext('<em>Value 0 (zero) means all images togheter in one chunk.</em> It can be used to review and control all the sizes toghether, when they are already cached.').CR_LF;
+}
+echo '						</label></li>'.CR_LF;
+echo '						<li><label>'.CR_LF;
+if ($process) {
+	if ($_REQUEST['show']) echo '							<input type="hidden" name="show" id="show" value="true" checked/>'.CR_LF;
+	echo '							<input type="checkbox" value="true" '.($_REQUEST['show']?'checked':'').' disabled/> '.gettext('Show already cached thumbs.').' '.gettext('(Activate only if needed, or you overcharge client and server without an effective benefit.)').CR_LF;
+} else {
+	echo '							<input type="checkbox" name="show" id="show" value="true" '.($_REQUEST['show']?'checked':'').'/> '.gettext('Show already cached thumbs.').' '.gettext('(Activate only if needed, or you overcharge client and server without an effective benefit.)').CR_LF;
 }
 echo '						</label></li>'.CR_LF;
 echo '						<br>'.CR_LF;
@@ -222,14 +236,6 @@ if ($process) {
 	echo '							<input type="number" value="'.$_REQUEST['timer'].'" disabled/> '.gettext('secs').CR_LF;
 } else {
 	echo '							<input type="number" name="timer" id="timer" value="'.$_REQUEST['timer'].'" '.(!$_REQUEST['auto']?'disabled':'').'/> '.gettext('secs').CR_LF;
-}
-echo '						</label></li>'.CR_LF;
-echo '						<li><label>'.CR_LF;
-if ($process) {
-	if ($_REQUEST['show']) echo '							<input type="hidden" name="show" id="show" value="true" checked/>'.CR_LF;
-	echo '							<input type="checkbox" value="true" '.($_REQUEST['show']?'checked':'').' disabled/> '.gettext('Show already cached thumbs.').' '.gettext('(Activate only if needed, or you overcharge client and server without an effective benefit.)').CR_LF;
-} else {
-	echo '							<input type="checkbox" name="show" id="show" value="true" '.($_REQUEST['show']?'checked':'').'/> '.gettext('Show already cached thumbs.').' '.gettext('(Activate only if needed, or you overcharge client and server without an effective benefit.)').CR_LF;
 }
 echo '						</label></li>'.CR_LF;
 echo '					</ol>'.CR_LF;
@@ -255,9 +261,9 @@ echo '					</ol>'.CR_LF;
 
 								$chunk_total=ceil(smartImageCache::$images_total/$_REQUEST['quantity']);
 
-echo '							<p>'.sprintf(ngettext('%1$u cache size to apply for %2$u items (%3$u cache sizes items in total.*)','%1$u cache sizes to apply for %2$u items (%3$u cache sizes images in total.*)',smartImageCache::$imagesizes_total),smartImageCache::$imagesizes_sizes,$_REQUEST['quantity'],smartImageCache::$imagesizes_total).'<br>'.CR_LF;
-echo '								<em>'.gettext('* Approximate number not counting already existing cache sizes and of the object which do not need caching.').'</em><br>'.CR_LF;
-echo '								<em>'.gettext('* If some cache size appears not to be loaded below, try to pass mouse pointer on it, to attempt reloading.').'</em>'.CR_LF;
+echo '							<p>'.sprintf(ngettext('%1$u cache size to apply for %2$u items (%3$u items and %4$u cache sizes items in total.*)','%1$u cache sizes to apply for %2$u items per chunk (%3$u items and %4$u cache sizes items in total.*)',smartImageCache::$imagesizes_total),smartImageCache::$imagesizes_sizes,$_REQUEST['quantity'],smartImageCache::$images_total,smartImageCache::$imagesizes_total).'<br>'.CR_LF;
+echo '								<em>'.gettext('* Approximate number not counting already existing cache sizes and of the object which do not need caching.').'</em><br><br>'.CR_LF;
+echo '								<em>'.gettext('If some cache size appears not to be loaded below, try to pass mouse pointer on it, to attempt reloading.').'</em>'.CR_LF;
 echo '							</p>'.CR_LF;
 echo '							<hr>'.CR_LF;
 echo '							<div class="imagecaching_progress">'.CR_LF;
@@ -273,8 +279,8 @@ echo '									<li>'.gettext('Automation:').' <b><span class="imagecaching_auto"
 echo '									<li>'.gettext('Cache production method:').' <b><span class="imagecaching_method">'.(getOption('graphicslib_selected')=='imagick'?'Imagick':'GDlibrary').'</span></b> library / <b><span class="imagecaching_method">'.($method?gettext('cURL'):gettext('Classic')).'</span></b> method</li>'.CR_LF;
 echo '									<li>'.gettext('Chunk processed:').' <b><span class="imagecaching_chunkcount">'.$_REQUEST['chunk'].'</span></b> / <b><span>'.$chunk_total.'</span></b></li>'.CR_LF;
 echo '									<li>'.gettext('Albums processed:').' <b><span class="imagecaching_albumcount">-</span></b> / <b><span>'.smartImageCache::$albums_total.'</span></b></li>'.CR_LF;
-echo '									<li>'.gettext('Items processed:').' <b><span class="imagecaching_imagecount">-</span></b> / <b><span>'.smartImageCache::$images_total.'</span></b> ('.$_REQUEST['quantity'].' images every chunk)</li>'.CR_LF;
-echo '									<li>'.gettext('Cache sizes processed:').' <b><span class="imagecaching_sizecount">-</span></b> / <b><span>'.smartImageCache::$imagesizes_total.'</span></b> ('.($_REQUEST['quantity']*smartImageCache::$imagesizes_sizes).' cache sizes every chunk)'.CR_LF;
+echo '									<li>'.gettext('Items processed:').' <b><span class="imagecaching_imagecount">-</span></b> / <b><span>'.smartImageCache::$images_total.'</span></b> (max. '.$_REQUEST['quantity'].' items every chunk)</li>'.CR_LF;
+echo '									<li>'.gettext('Cache sizes processed:').' <b><span class="imagecaching_sizecount">-</span></b> / <b><span>'.smartImageCache::$imagesizes_total.'</span></b> (max. '.($_REQUEST['quantity']*smartImageCache::$imagesizes_sizes).' cache sizes every chunk)'.CR_LF;
 echo '										<br>'.gettext('Results for chunk ').'<b>'.$_REQUEST['chunk'].'</b>:<ul>'.CR_LF;
 echo '											<li><img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/cache.png" height="20" alt="cached" title="cached"> '.gettext('Already cached: ').'<span class="imagecaching_imagesizes_cached">'.smartImageCache::$imagesizes_cached.'</span> '.gettext('sizes').'</li>'.CR_LF;
 echo '											<li><img src="'.FULLWEBPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/images/ok.png" height="20" alt="ok" title="ok"> '.gettext('Generated: ').'<span class="imagecaching_imagesizes_ok">'.smartImageCache::$imagesizes_ok.'</span> '.gettext('sizes').'</li>'.CR_LF;

@@ -22,18 +22,20 @@
  *		<li>Plugin options which can be set up:
  *			<ul>
  * 				<li>number of items per chunk,</li>
+ * 				<li>how long does PHP process can last,</li>
+ *				<li>enable/disable cache sizes produced in advance</li>
  *				<li>enable/disable auto-advance and its waiting time,</li>
  *				<li>set-timeout parameter for every caching process</li>
  *			</ul></li>
- *		<li>auto-advance process can be paused and restarted to easily verify things; a chunk can be reloaded as well</li>
- *		<li>auto-advance stops by itself if some cache size are recognized as failed</li>
- *		<li>number of items per chunk, as well as auto-advance method and timing, can be defined as plugin option, but also on the fly, directly in the process launch</li>
- *		<li>all the images (already cached and new ones) are thumbed with alegend icon beside, for a better control of the whole process</li>
- *		<li>thumbs showed are a bit bigger then in cacheManager experience (50px high) to give users the ability to better see the single cache size results</li>
- *		<li>passing mouse pointer on not loaded images, attempts reloading of cache size</li>
- *		<li>it has been tested and works both with GDlibrary and Imagick libraries,</li>
- *		<li>it has been tested and works both with Classic and cURL method</li>
-  * </ul>
+ *		<li>auto-advance process can be paused and restarted to easily verify things</li>
+ *		<li>a chunk can be reloaded</li>
+ *		<li>auto-advance stops by itself if some cache size are failed (limitation of ok/ko results are the same of the actual Zenphoto system)</li>
+ *		<li>number of items per chunk, as well as auto-advance method, timing and show already cached images, can be defined as plugin option, but also on the fly, directly in the process launch</li>
+ *		<li>all the images (already cached and new ones) can be thumbed in page, for a better control of the whole process (if the relative option is activated during the process)</li>
+ *		<li>thumbs showed are a quite large (50px high) to give users the rought ability to control the single cache size results</li>
+ *		<li>if some image is not loaded correctly by your browser, passing mouse pointer on it, lets attempt reloading of cache size</li>
+ *		<li>plugin can produce image cache sizes, both with GDlibrary or Imagick libraries, and both with Classic and cURL method, based on configuration of your server</li>
+ * </ul>
  *
  * @package plugins
  * @subpackage smartImageCache
@@ -44,7 +46,7 @@
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 $plugin_is_filter=5|ADMIN_PLUGIN;
 $plugin_description=gettext("Smart Creation of cached images. It can be useful to avoid server surcharge if you work with many photos and/or very heavy HD files. cacheManager extension should be present and enabled to work.");
-$plugin_version='1.0.1';
+$plugin_version='1.0.2';
 $plugin_author="Filippo Boscarino";
 $plugin_category=gettext('Admin');
 
@@ -213,9 +215,9 @@ class smartImageCache {
 			echo '</script>'.CR_LF;
 
 			if ((self::$images_counter+$album_value)<(($chunk-1)*$quantity)) {
-				$album_value=array();
 				self::$images_counter=self::$images_counter+$album_value;
 				self::$images_total=self::$images_total+$album_value;
+				$album_value=array();
 			} else {
 				$album_value=array();
 				foreach ($album_actual->getImages(0) as $image) {
