@@ -1,0 +1,53 @@
+/* ---------------------------------------------------------------------------- */
+/* G E N E R A L																*/
+/* ---------------------------------------------------------------------------- */
+em {
+	color:green;
+}
+.sICalbum {
+	padding-left:20px;
+	background:#d9edf7;
+	align-items:center;
+	display:flex;
+}
+.sICalbumIcon {
+	margin-right:10px;
+}
+.sICalbumMessage {
+	margin-left:20px;
+	display:inline-block;
+	float:left;
+}
+.sICitemLine {
+	background:#eeeeee;
+	margin-bottom:3px;
+	display:block;
+}
+.sICitemName {
+	margin-left:20px;
+	min-width:25%;
+	display:inline-block;
+	float:left;
+}
+.sICitemIcon {
+	margin-right:5px;
+	float:left;
+}
+.sICitemSizes {
+	margin-left:20px;
+	display:inline-block;
+}
+.sICitemSize {
+	margin-right:10px;
+	display:inline-block;
+}
+.sICitemSizeImage {
+	float:left;
+}
+.sICitemMessage {
+	margin-left:20px;
+	display:inline-block;
+}
+/* ---------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------- */

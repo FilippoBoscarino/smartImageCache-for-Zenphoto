@@ -1,6 +1,31 @@
 CHANGELOG
 --------------------------
 
+v.1.1.0 - released 12/04/2023
+
+	- Introduced a new secured runtime function to discard a single produced cache size in the launcher page
+	  and directly delete its own file from file system.
+	- Display dimensions (height) for cached sizes thumbs is now an option and can be configured in plugin setup.
+	- Sidecar thumbs for Multimedia items are now included in generation process.
+	- Some browser's cache controls have been added to ensure to have the real result showed in thumbs.
+	- Albums and Items name are now a link and can open their relative user page in a new page.
+	- Infos on folders not involved in the chunk process are now not shown anymore, to keep the results page
+	  brief and easier to read in deep album trees.
+	- Corrected controls on misleading message for already cached albums (once defined as without images).
+	- How many items per chunk and Pause before reload input fields are now bounded ranges in the launcher page.
+	- Fixed Reload button at top functioning.
+	- Continue, Pause and Reload buttons now are disabled when they can act anymore.
+	- Added a dedicated stand-alone style sheet.
+	- 'cacheManager.php' has been renamed into 'smartImageCache.php' to better identify the plugin's functionalities
+	- 'function.php' has been created to collect all the functions dedicated to the plugin.
+	- 'deprecated-functions.php' has been eliminated.
+	- Corrected some typos in messages.
+	- Resized Logo in the plugins list.
+	- Code reviewed and some cosmetic touch-ups to the launching page and to the outputs.
+
+	Known issues:
+		- a lot of strings displayed are not tranlated by the platform, because not included in language libraries
+
 v.1.0.2 - released 23/03/2023
 
 	- a bug in the album tree navigation that could stop the process, has been fixed
