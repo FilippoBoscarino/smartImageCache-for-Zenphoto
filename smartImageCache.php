@@ -46,9 +46,9 @@
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 $plugin_is_filter=5|ADMIN_PLUGIN;
 $plugin_description=gettext("Smart Creation of cached images. It can be useful to avoid server surcharge if you work with many photos and/or very heavy HD files. cacheManager extension should be present and enabled to work.");
-$plugin_version='1.1.0';
+$plugin_version='1.1.1';
 $plugin_author='Filippo Boscarino';
-$plugin_URL="http://www.boscarino.eu/application/Zenphoto/plugin";
+$plugin_URL="https://github.com/FilippoBoscarino/smartImageCache-for-Zenphoto";
 $plugin_category=gettext('Admin');
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 /* Controls																																				*/
@@ -64,7 +64,7 @@ require_once(SERVERPATH.'/'.USER_PLUGIN_FOLDER.'/smartImageCache/function.php');
 /* Filters																																				*/
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */
 zp_register_filter('admin_utilities_buttons','smartImageCache::overviewButton');
-zp_register_filter('edit_album_utilities','smartImageCache::albumButton',-9998);
+zp_register_filter('edit_album_utilities','smartImageCache::albumButton',10);
 // zp_register_filter('show_change','smartImageCache::published');
 
 /* ---------------------------------------------------------------------------------------------------------------------------------------------------- */

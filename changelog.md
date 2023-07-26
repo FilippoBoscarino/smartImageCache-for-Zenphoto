@@ -1,5 +1,13 @@
 CHANGELOG
 --------------------------
+v.1.1.1 - released 26/07/2023
+
+	- solved a compatibility issue with xmpMetadata plugin
+	- correction of plugin's Url Metadata
+
+	Known issues:
+		- a lot of strings displayed are not tranlated by the platform, because not included in language libraries
+
 
 v.1.1.0 - released 12/04/2023
 

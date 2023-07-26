@@ -1,6 +1,6 @@
 smartImageCache plugin for Zenphoto
-Version: 1.1.0
-Released: 2023-04-12
+Version: 1.1.1
+Released: 2023-07-26
 Author: Filippo Boscarino
 Platform: Zenphoto CMS v.1.6.x and higher
 Dependancies: cacheManager ACTIVE (zp_extension)
